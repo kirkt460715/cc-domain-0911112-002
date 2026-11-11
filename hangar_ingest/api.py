@@ -5,16 +5,21 @@ from hangar_ingest.runs import batches, claims, inspection, journal, partitions,
 from hangar_ingest.runs.orchestrator import Pipeline
 from hangar_ingest.exports import releases, tabular, watermarks, transfer
 from hangar_ingest.exports.contracts import DeliveryContracts
+from hangar_ingest.collections.client import SupplierClient
+from hangar_ingest.collections.runner import CollectionRunner
+from hangar_ingest.collections.store import CollectionStore
 
 
 class Application:
-    def __init__(self, db):
+    def __init__(self, db, *, supplier=None):
         self.db = db
         self.pipeline = Pipeline(db)
         self.delivery = DeliveryContracts(db)
         self.receiver = transfer.Receiver(db)
         from hangar_ingest.runs.manifests import SourceReconciliation
         self.sources = SourceReconciliation(db)
+        self.collections = CollectionStore(db)
+        self._supplier = supplier
         self.operations = {
             'preflight.source': (preflight.source_configuration, {'source', 'start', 'end'}, set()),
             'preflight.inventory': (preflight.device_inventory, set(), set()),
@@ -121,7 +126,45 @@ class Application:
             'delivery.certify': (self.delivery.certify, {'contract_id', 'release_id'}, {'evidence'}),
             'delivery.report': (self.delivery.report, {'report_id'}, set()),
             'delivery.list': (self.delivery.listing, set(), set()),
+            'collection.start': (self.collection_start, {'collection_id', 'source', 'start', 'end', 'config_revision', 'max_attempts', 'deadline'}, {'idempotency_key', 'export_id', 'supplier_url', 'supplier_headers', 'timeout'}),
+            'collection.step': (self.collection_step, {'collection_id'}, {'supplier_url', 'supplier_headers', 'timeout'}),
+            'collection.run': (self.collection_run, {'collection_id'}, {'max_steps', 'supplier_url', 'supplier_headers', 'timeout'}),
+            'collection.pause': (self.collections.pause, {'collection_id', 'revision'}, set()),
+            'collection.resume': (self.collections.resume, {'collection_id', 'revision'}, set()),
+            'collection.cancel': (self.collections.cancel, {'collection_id', 'revision', 'reason'}, set()),
+            'collection.get': (self.collections.get, {'collection_id'}, set()),
+            'collection.list': (self.collections.list, set(), {'state'}),
+            'collection.due': (self.collections.due, set(), {'now'}),
+            'collection.status': (self.collection_status, {'collection_id'}, set()),
+            'collection.attempts': (self.collections.attempts, {'collection_id'}, set()),
         }
+
+    def runner(self, *, supplier_url=None, supplier_headers=None, timeout=None):
+        if self._supplier is not None:
+            client = self._supplier
+        elif supplier_url is not None:
+            client = SupplierClient(supplier_url, headers=supplier_headers, **({'timeout': timeout} if timeout else {}))
+        else:
+            fail('supplier_required', 'Supplier endpoint must be configured for collection operations')
+        return CollectionRunner(self.db, client, self.collections)
+
+    def collection_start(self, collection_id, source, start, end, config_revision, *, max_attempts, deadline,
+                         idempotency_key=None, export_id=None, supplier_url=None, supplier_headers=None, timeout=None):
+        runner = self.runner(supplier_url=supplier_url, supplier_headers=supplier_headers, timeout=timeout)
+        return runner.start(collection_id, source, start, end, config_revision,
+                            max_attempts=max_attempts, deadline=deadline,
+                            idempotency_key=idempotency_key, export_id=export_id)
+
+    def collection_step(self, collection_id, *, supplier_url=None, supplier_headers=None, timeout=None):
+        runner = self.runner(supplier_url=supplier_url, supplier_headers=supplier_headers, timeout=timeout)
+        return runner.step(collection_id)
+
+    def collection_run(self, collection_id, *, max_steps=None, supplier_url=None, supplier_headers=None, timeout=None):
+        runner = self.runner(supplier_url=supplier_url, supplier_headers=supplier_headers, timeout=timeout)
+        return runner.run(collection_id, max_steps=max_steps)
+
+    def collection_status(self, collection_id):
+        return CollectionRunner(self.db, None, self.collections).status(collection_id)
 
     def call(self, operation, parameters=None):
         parameters = {} if parameters is None else parameters

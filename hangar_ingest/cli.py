@@ -36,6 +36,18 @@ def make_parser():
     export.add_argument('--format', choices=['directory', 'csv', 'ndjson'], default='directory')
     demo = sub.add_parser('demo')
     demo.add_argument('--fixture', required=True)
+    collect = sub.add_parser('collect')
+    collect.add_argument('collection_id')
+    collect.add_argument('--source', required=True)
+    collect.add_argument('--start', required=True)
+    collect.add_argument('--end', required=True)
+    collect.add_argument('--config-revision', type=int, required=True)
+    collect.add_argument('--supplier-url', required=True)
+    collect.add_argument('--max-attempts', type=int, default=20)
+    collect.add_argument('--deadline', required=True, help='ISO8601 UTC instant after which the collection must stop')
+    collect.add_argument('--export-id', help='Reattach to an export already accepted by the supplier')
+    collect.add_argument('--idempotency-key', help='Idempotency-Key header required by the supplier')
+    collect.add_argument('--step', action='store_true', help='Advance a single state transition instead of running to completion')
     return parser
 
 
@@ -117,6 +129,25 @@ def dispatch(app, args):
         return write_new(args.destination, content)
     if args.command == 'demo':
         return demo(app, json_input(args.fixture))
+    if args.command == 'collect':
+        parameters = {
+            'collection_id': args.collection_id, 'source': args.source,
+            'start': args.start, 'end': args.end, 'config_revision': args.config_revision,
+            'max_attempts': args.max_attempts, 'deadline': args.deadline,
+            'supplier_url': args.supplier_url,
+        }
+        if args.export_id:
+            parameters['export_id'] = args.export_id
+        if args.idempotency_key:
+            parameters['idempotency_key'] = args.idempotency_key
+            parameters['supplier_headers'] = {'Idempotency-Key': args.idempotency_key}
+        app.call('collection.start', parameters)
+        run_parameters = {'collection_id': args.collection_id, 'supplier_url': args.supplier_url}
+        if args.idempotency_key:
+            run_parameters['supplier_headers'] = {'Idempotency-Key': args.idempotency_key}
+        if args.step:
+            return app.call('collection.step', run_parameters)
+        return app.call('collection.run', run_parameters)
     fail('unknown_command', 'Unknown command')
 
 
