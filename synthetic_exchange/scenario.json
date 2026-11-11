@@ -1,0 +1,107 @@
+{
+  "routes": [
+    {
+      "path": "/exports",
+      "responses": [
+        {
+          "json": {
+            "export_id": "exp1",
+            "status": "queued"
+          },
+          "status": 202
+        }
+      ],
+      "method": "POST",
+      "required_headers": {
+        "Idempotency-Key": "local-window"
+      }
+    },
+    {
+      "path": "/exports/exp1",
+      "responses": [
+        {
+          "json": {
+            "status": "running"
+          },
+          "status": 202,
+          "headers": {
+            "Retry-After": "1"
+          }
+        },
+        {
+          "json": {
+            "status": "ready",
+            "manifest": {
+              "export_id": "exp1",
+              "revision": 1,
+              "shards": [
+                {
+                  "id": "a",
+                  "url": "/download/a",
+                  "bytes": 218,
+                  "sha256": "3bd88aaaa96dfd61fbd2b3c47d48f3a54088c2f59db362543fa44c5e85f0333f",
+                  "records": 2
+                },
+                {
+                  "id": "b",
+                  "url": "/download/b",
+                  "bytes": 110,
+                  "sha256": "fe8c8d1964234886e2c4e63d2a397b7e8ee07544cfb1650c42cbaa425aab86c5",
+                  "records": 1
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "path": "/download/a",
+      "responses": [
+        {
+          "body": "{\"device\":\"sensor1\",\"event_id\":\"event1\",\"observed_at\":\"2026-11-11T10:00:01.000000Z\",\"unit\":\"C\",\"value\":\"20\"}\n{\"device\":\"sensor1\",\"event_id\":\"event2\",\"observed_at\":\"2026-11-11T10:00:02.000000Z\",\"unit\":\"C\",\"value\":\"30\"}\n"
+        }
+      ]
+    },
+    {
+      "path": "/download/b",
+      "responses": [
+        {
+          "status": 403,
+          "body": "链接已过期"
+        },
+        {
+          "body": "{\"device\":\"sensor1\",\"event_id\":\"event3\",\"observed_at\":\"2026-11-11T10:00:03.000000Z\",\"unit\":\"C\",\"value\":\"500\"}\n"
+        }
+      ]
+    },
+    {
+      "path": "/exports/exp1/refresh",
+      "responses": [
+        {
+          "json": {
+            "export_id": "exp1",
+            "revision": 1,
+            "shards": [
+              {
+                "id": "a",
+                "url": "/download/a",
+                "bytes": 218,
+                "sha256": "3bd88aaaa96dfd61fbd2b3c47d48f3a54088c2f59db362543fa44c5e85f0333f",
+                "records": 2
+              },
+              {
+                "id": "b",
+                "url": "/download/b",
+                "bytes": 110,
+                "sha256": "fe8c8d1964234886e2c4e63d2a397b7e8ee07544cfb1650c42cbaa425aab86c5",
+                "records": 1
+              }
+            ]
+          }
+        }
+      ],
+      "method": "POST"
+    }
+  ]
+}

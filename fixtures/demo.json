@@ -1,0 +1,75 @@
+{
+  "setup": [
+    {
+      "operation": "device.register",
+      "parameters": {
+        "device_id": "dev1",
+        "aircraft": "plane1",
+        "component": "engine1",
+        "metric": "temperature",
+        "canonical_unit": "C"
+      }
+    },
+    {
+      "operation": "alias.add",
+      "parameters": {
+        "source": "feed1",
+        "external_id": "sensor1",
+        "device_id": "dev1",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "operation": "calibration.add",
+      "parameters": {
+        "calibration_id": "cal1",
+        "device_id": "dev1",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "operation": "quality.configure",
+      "parameters": {
+        "device_id": "dev1",
+        "minimum": "-100",
+        "maximum": "200"
+      }
+    },
+    {
+      "operation": "order.upsert",
+      "parameters": {
+        "value": {
+          "order_id": "order1",
+          "revision": 1,
+          "aircraft": "plane1",
+          "component": "engine1",
+          "opened_at": "2026-11-11T09:00:00Z",
+          "closed_at": "2026-11-11T11:00:00Z",
+          "issue": "Synthetic temperature excursion",
+          "resolution": "Synthetic inspection",
+          "state": "closed"
+        }
+      }
+    }
+  ],
+  "batch": {
+    "batch_id": "demo",
+    "source": "feed1",
+    "content": "{\"device\":\"sensor1\",\"event_id\":\"event1\",\"observed_at\":\"2026-11-11T10:00:01.000000Z\",\"unit\":\"C\",\"value\":\"20\"}\n{\"device\":\"sensor1\",\"event_id\":\"event2\",\"observed_at\":\"2026-11-11T10:00:02.000000Z\",\"unit\":\"C\",\"value\":\"30\"}\n{\"device\":\"sensor1\",\"event_id\":\"event3\",\"observed_at\":\"2026-11-11T10:00:03.000000Z\",\"unit\":\"C\",\"value\":\"500\"}\n"
+  },
+  "expected": {
+    "devices": 1,
+    "observations": 2,
+    "work_orders": 1,
+    "releases": 1
+  },
+  "release": {
+    "release_id": "demo-release",
+    "watermark": "2026-11-12T00:00:00Z",
+    "partition_keys": [
+      "plane1/2026-11-11"
+    ]
+  }
+}

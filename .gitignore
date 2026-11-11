@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.sqlite3*
+*.db*
+
+.env
+*.key
+*.pem
+__pycache__/
+*.py[cod]
+node_modules/
+var/
